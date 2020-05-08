@@ -4,7 +4,13 @@
 \alias{revisions}
 \title{Title}
 \usage{
-revisions(periodicity, input)
+revisions(
+  periodicity,
+  input,
+  selection.nrevisions = 0,
+  selection.firstVintage = NULL,
+  selection.lastVintage = NULL
+)
 }
 \arguments{
 \item{periodicity}{}

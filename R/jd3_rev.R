@@ -1,5 +1,66 @@
 #' @include jd3_procresults.R jd3_rslts.R jd3_ts.R
+#' @import knitr
 NULL
+
+
+
+OlsNames<-c("N", "R2", "intercept.estimate", "intercept.stdev", "intercept.tstat", "intercept.pvalue",
+            "slope.estimate", "slope.stdev", "slope.tstat", "slope.pvalue",
+            "JarqueBera.value", "JarqueBera.pvalue",
+            "BreuschPagan.value", "BreuschPagan.pvalue",
+            "White.value", "White.pvalue")
+
+readanalysis<-function(janalysis){
+  n<-.jcall(janalysis, "I", "size")
+  theil<-sapply(1:n, function(i){.jcall("demetra/revisions/r/Utility", "D", "theil", janalysis, as.integer(i))})
+  ols<-matrix(ncol=length(OlsNames), nrow=n)
+  for (i in 1:n){
+    ols[i,]<-.jcall("demetra/revisions/r/Utility", "[D", "olsInformation", janalysis, as.integer(i))
+  }
+  ols<-as.data.frame(ols)
+  ols<-`colnames<-`(ols, OlsNames)
+  
+  
+  revisions<-list(theil=data.frame(theil=theil), ols=ols)
+  
+  return (structure(revisions,class="JD.Revisions.RegressionBasedAnalysis") )
+}
+
+#' Title
+#'
+#' @param rev 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+print.JD.Revisions.RegressionBasedAnalysis<-function(rev, maxcols=10){
+  o<-as.data.frame(t(as.matrix(rev$ols)))
+  if (dim(o)[2]>maxcols) o<-o[,1:maxcols]
+  print(knitr::kable(o, "pandoc", digits=3))
+}
+
+
+
+makerevisions<-function(jfac, selection.nrevisions, selection.start, selection.end, analysis.vertical){
+  #creates the Vintages
+  
+  jvintages<-.jcall(jfac, "Ldemetra/revisions/r/Vintages;", "build")
+  
+  if (selection.nrevisions>0){
+    janalysis<-.jcall(jvintages, "Ldemetra/revisions/parametric/RegressionBasedAnalysis;", "diagonalAnalysis", as.integer(0), as.integer(selection.nrevisions))
+  }else if (! is.null(selection.start) && ! is.null(selection.end) ){
+    if (inherits(selection.start, "Date") && inherits(selection.end, "Date")){
+      janalysis<-.jcall(jvintages, "Ldemetra/revisions/parametric/RegressionBasedAnalysis;", "verticalAnalysis", as.character(selection.start), as.character(selection.end))
+    }
+    else{
+      warning("Wrong registration period")
+    }  
+  }
+  
+  return(readanalysis(janalysis))
+}
+
 
 #' Title
 #'
@@ -10,9 +71,9 @@ NULL
 #' @export
 #'
 #' @examples
-revisions <- function(periodicity, input) {
+revisions <- function(periodicity, input, selection.nrevisions=0, selection.firstVintage=NULL, selection.lastVintage=NULL) {
   
-  jrev<-.jnew("demetra/revisions/r/VintagesFactory", as.integer(periodicity))
+  jfac<-.jnew("demetra/revisions/r/VintagesFactory", as.integer(periodicity))
   
   allowedRevArgs <- c("referencePeriod","registrationDate","value")
   
@@ -39,20 +100,16 @@ revisions <- function(periodicity, input) {
       warning("Wrong value")
       return(NULL)
     }
-    .jcall(jrev, "V", "add", as.character(refdate), as.character(regdate), val)
+    .jcall(jfac, "V", "add", as.character(refdate), as.character(regdate), val)
     return (NULL)
   }
   
   lapply(input, FUN=addToRevisions)
   
-  preliminary<- ts_jd2r(.jcall(jrev,  "Ldemetra/timeseries/TsData;", "preliminary"))
-  current<- ts_jd2r(.jcall(jrev,  "Ldemetra/timeseries/TsData;", "current"))
-
-    return(structure(list(
-    internal=jrev,
-    preliminary=preliminary,
-    current=current),
-    class="JDRevisions"))
+  #creates the Vintages
+  
+  return(makerevisions(jfac, selection.nrevisions, selection.start, selection.end, analysis.vertical))
+  
   
 }
 
@@ -87,7 +144,7 @@ yp<-function(s){
 #' @export
 #'
 #' @examples
-revisionsFromCsv<-function(file, periodicity, regDateFormat= "%Y.%m.%d"){
+revisionsFromCsv<-function(file, periodicity, regDateFormat= "%Y.%m.%d", selection.nrevisions=0, selection.start=NULL, selection.end=NULL, analysis.vertical=T){
   z<-read.csv(file, stringsAsFactors = F)  
 
   todate<-function(x){
@@ -99,28 +156,21 @@ revisionsFromCsv<-function(file, periodicity, regDateFormat= "%Y.%m.%d"){
   
   refdates<-lapply(z$time,yp)
   
-  jrev<-.jnew("demetra/revisions/r/VintagesFactory", as.integer(periodicity))
+  jfac<-.jnew("demetra/revisions/r/VintagesFactory", as.integer(periodicity))
   
   # Not optimal
   for (row in 1:length(refdates)){
     for (col in 1:length(regdates)){
       val<-z[row, col+1]
       if (! is.na(val)){
-        .jcall(jrev, "V", "add", as.character(refdates[[row]]), as.character(regdates[[col]]), val)
+        .jcall(jfac, "V", "add", as.character(refdates[[row]]), as.character(regdates[[col]]), val)
       }
     }
   }
   
-  preliminary<- ts_jd2r(.jcall(jrev,  "Ldemetra/timeseries/TsData;", "preliminary"))
-  current<- ts_jd2r(.jcall(jrev,  "Ldemetra/timeseries/TsData;", "current"))
-
-    return(structure(list(
-    internal=jrev,
-    preliminary=preliminary,
-    current=current),
-    class="JD.Revisions"))
+  return(makerevisions(jfac, selection.nrevisions, selection.start, selection.end, analysis.vertical))
+  
 }
-
 
 #' Title
 #'
@@ -157,5 +207,6 @@ regressionAnalysis<-function(revisions, nrevs=3){
     list(bias=fbias),
     class="JD.Revisions.RegressionBasedAnalysis"))
 }
+
 
 

@@ -4,7 +4,15 @@
 \alias{revisionsFromCsv}
 \title{Title}
 \usage{
-revisionsFromCsv(file, periodicity, regDateFormat = "\%Y.\%m.\%d")
+revisionsFromCsv(
+  file,
+  periodicity,
+  regDateFormat = "\%Y.\%m.\%d",
+  selection.nrevisions = 0,
+  selection.start = NULL,
+  selection.end = NULL,
+  analysis.vertical = T
+)
 }
 \arguments{
 \item{file}{}
