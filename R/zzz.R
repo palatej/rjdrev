@@ -17,7 +17,7 @@ jd_clobj <- NULL
     stop(paste("Your java version is ", jversion,
                ".  Need 1.8.0 or higher.", sep=""))
   } else {
-    cat("Java requirements fullfilled, found version ",jversion,"\n")
+    packageStartupMessage("Java requirements fullfilled, found version ",jversion,"\n")
   }
 
   # often used while calling java

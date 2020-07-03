@@ -21,7 +21,6 @@ Encoding: UTF-8
 Collate: 
     'jd3_ts.R'
     'jd3_rslts.R'
-    'jd3_procresults.R'
     'jd3_rev.R'
     'zzz.R'
 NeedsCompilation: no

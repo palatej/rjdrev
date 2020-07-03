@@ -1,4 +1,4 @@
-#' @include jd3_procresults.R jd3_rslts.R jd3_ts.R
+#' @include jd3_rslts.R jd3_ts.R
 #' @import knitr
 NULL
 
@@ -168,6 +168,7 @@ revisionsFromCsv<-function(file, periodicity, regDateFormat= "%Y.%m.%d", selecti
     }
   }
   
+  
   return(makerevisions(jfac, selection.nrevisions, selection.start, selection.end, analysis.vertical))
   
 }
@@ -209,4 +210,89 @@ regressionAnalysis<-function(revisions, nrevs=3){
 }
 
 
+
+#' Title
+#'
+#' @param file 
+#' @param periodicity 
+#' @param regDateFormat 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+vintageTableFromCsv<-function(file, periodicity, regDateFormat= "%Y.%m.%d"){
+  z<-read.csv(file, stringsAsFactors = F)  
+  
+  todate<-function(x){
+    x<-substr(x, 2, 11)
+    return (as.Date(x, regDateFormat))
+  }
+  
+  regdates<-lapply(colnames(z)[-1], todate)
+  
+  refdates<-lapply(z$time,yp)
+  
+  jfac<-.jnew("demetra/revisions/r/VintagesFactory", as.integer(periodicity))
+  
+  # Not optimal
+  for (row in 1:length(refdates)){
+    for (col in 1:length(regdates)){
+      val<-z[row, col+1]
+      if (! is.na(val)){
+        .jcall(jfac, "V", "add", as.character(refdates[[row]]), as.character(regdates[[col]]), val)
+      }
+    }
+  }
+  
+  return (vintageTableFromFactory(jfac))
+}
+
+vintageTableFromFactory<-function(jfac){
+
+  jvn<-.jcall(jfac, "Ldemetra/revisions/r/Vintages;", "build")
+  jmat<-.jcall(jvn, "Ldemetra/revisions/timeseries/TsMatrix;", "vtable")
+  data<-matrix_jd2r(.jcall(jmat, "Ldemetra/math/matrices/MatrixType;", "getMatrix"))
+  cols<-.jcall(jmat, "[S", "getFields")
+  jstart<-.jcall(jmat, "Ldemetra/timeseries/TsPeriod;", "getStart")
+  pstart<-.jcall("demetra/timeseries/r/TsUtility", "[I", "of", jstart)
+  
+  data[is.nan(data)]<-NA
+  tsm<-ts(data, frequency = pstart[1], start = pstart[-1])
+  tsm<-`colnames<-`(tsm, cols)
+  return (tsm)
+}
+
+#' Title
+#'
+#' @param tsm 
+#' @param lag 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+verticalRevisions<-function(tsm, lag=1){
+  q<-tsm
+  q[is.na(q)]<-0
+  n<-dim(q)[2]
+  
+  idx1<-(lag+1):n
+  idx0<-1:(n-lag)
+  
+  rev<-q[,idx1]-q[,idx0]
+  
+  w<-sapply(colnames(tsm), function(s){paste0('[', s, ']')})
+  rw<-mapply(function(a,b){paste(a,b,sep='-')}, w[idx1],w[idx0])
+  
+  rev<-`colnames<-`(rev, rw)
+  
+  jq<-matrix_r2jd(q)
+  theil<-.jcall("demetra/revisions/r/Utility", "[D", "theil", jq)
+  jsd<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "slopeAndDrift", jq)
+  slopeAndDrift=matrix_jd2r(jsd)
+  parametric<-list(theil=theil, slopeAndDrift=slopeAndDrift)
+
+  return (structure(list(vintageTable=tsm, revisions=rev, parametric=parametric), class="JD3_RevisionAnalysis"))
+}
 

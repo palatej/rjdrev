@@ -4,7 +4,7 @@
 \alias{print.JD.Revisions.RegressionBasedAnalysis}
 \title{Title}
 \usage{
-\method{print}{JD.Revisions.RegressionBasedAnalysis}(rev)
+\method{print}{JD.Revisions.RegressionBasedAnalysis}(rev, maxcols = 10)
 }
 \arguments{
 \item{rev}{}
