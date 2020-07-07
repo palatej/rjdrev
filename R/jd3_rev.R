@@ -291,7 +291,16 @@ verticalRevisions<-function(tsm, lag=1){
   theil<-.jcall("demetra/revisions/r/Utility", "[D", "theil", jq)
   jsd<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "slopeAndDrift", jq)
   slopeAndDrift=matrix_jd2r(jsd)
-  parametric<-list(theil=theil, slopeAndDrift=slopeAndDrift)
+  jef1<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "efficiencyModel1", jq)
+  slopeAndDrift=matrix_jd2r(jsd)
+  jef2<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "efficiencyModel2", jq)
+  slopeAndDrift=matrix_jd2r(jsd)
+  efficiencyModel1=matrix_jd2r(jef1)
+  efficiencyModel2=matrix_jd2r(jef2)
+  parametric<-list(theil=theil, 
+                   slopeAndDrift=slopeAndDrift, 
+                   efficiencyModel1=efficiencyModel1,
+                   efficiencyModel2=efficiencyModel2)
 
   return (structure(list(vintageTable=tsm, revisions=rev, parametric=parametric), class="JD3_RevisionAnalysis"))
 }
