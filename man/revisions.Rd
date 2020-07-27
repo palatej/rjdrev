@@ -4,18 +4,12 @@
 \alias{revisions}
 \title{Title}
 \usage{
-revisions(
-  periodicity,
-  input,
-  selection.nrevisions = 0,
-  selection.firstVintage = NULL,
-  selection.lastVintage = NULL
-)
+revisions(vintages, gap = 1)
 }
 \arguments{
-\item{periodicity}{}
+\item{vintages}{}
 
-\item{input}{}
+\item{gap}{}
 }
 \value{
 

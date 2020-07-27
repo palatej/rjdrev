@@ -2,65 +2,36 @@
 #' @import knitr
 NULL
 
+biasNames<-c("N", "estimate", "stderr", "tstat", "pvalue", "ar(1)", "stderr.adjusted", "tstat.adjusted", "pvalue.adjusted")
 
+OlsNames<-c("N", "R2", "F", "intercept.estimate", "intercept.stderr", "intercept.pvalue",
+            "slope.estimate", "slope.stderr", "slope.pvalue",
+            "skewness", "kurtosis", "JarqueBera.value", "JarqueBera.pvalue", 
+            "BreuschPagan.R2", "BreuschPagan.value", "BreuschPagan.pvalue",
+            "White.R2", "White.value", "White.pvalue", 
+            "arch.R2", "arch.value", "arch.pvalue")
 
-OlsNames<-c("N", "R2", "intercept.estimate", "intercept.stdev", "intercept.tstat", "intercept.pvalue",
-            "slope.estimate", "slope.stdev", "slope.tstat", "slope.pvalue",
-            "JarqueBera.value", "JarqueBera.pvalue",
-            "BreuschPagan.value", "BreuschPagan.pvalue",
-            "White.value", "White.pvalue")
+OlsTestNames<-c(
+              "skewness", "kurtosis", "JarqueBera.value", "JarqueBera.pvalue", 
+            "BreuschPagan.R2", "BreuschPagan.value", "BreuschPagan.pvalue",
+            "White.R2", "White.value", "White.pvalue", 
+            "arch.R2", "arch.value", "arch.pvalue")
 
-readanalysis<-function(janalysis){
-  n<-.jcall(janalysis, "I", "size")
-  theil<-sapply(1:n, function(i){.jcall("demetra/revisions/r/Utility", "D", "theil", janalysis, as.integer(i))})
-  ols<-matrix(ncol=length(OlsNames), nrow=n)
-  for (i in 1:n){
-    ols[i,]<-.jcall("demetra/revisions/r/Utility", "[D", "olsInformation", janalysis, as.integer(i))
+OlsAdjNames<-c("N", "R2", "F")
+            
+
+OlsCNames<-function(nregs){
+  n<-c("intercept.estimate", "intercept.stderr", "intercept.pvalue") 
+  for (i in 1:nregs){
+    cur<-paste0("x(", i, ")")
+    n<-c(n, paste0(cur, ".estimate"), paste0(cur, ".stderr"), paste0(cur, ".pvalue")) 
   }
-  ols<-as.data.frame(ols)
-  ols<-`colnames<-`(ols, OlsNames)
-  
-  
-  revisions<-list(theil=data.frame(theil=theil), ols=ols)
-  
-  return (structure(revisions,class="JD.Revisions.RegressionBasedAnalysis") )
+  return (n)
+} 
+
+OlsAllNames<-function(nregs){
+  return (c(OlsAdjNames, OlsCNames(nregs), OlsTestNames))
 }
-
-#' Title
-#'
-#' @param rev 
-#'
-#' @return
-#' @export
-#'
-#' @examples
-print.JD.Revisions.RegressionBasedAnalysis<-function(rev, maxcols=10){
-  o<-as.data.frame(t(as.matrix(rev$ols)))
-  if (dim(o)[2]>maxcols) o<-o[,1:maxcols]
-  print(knitr::kable(o, "pandoc", digits=3))
-}
-
-
-
-makerevisions<-function(jfac, selection.nrevisions, selection.start, selection.end, analysis.vertical){
-  #creates the Vintages
-  
-  jvintages<-.jcall(jfac, "Ldemetra/revisions/r/Vintages;", "build")
-  
-  if (selection.nrevisions>0){
-    janalysis<-.jcall(jvintages, "Ldemetra/revisions/parametric/RegressionBasedAnalysis;", "diagonalAnalysis", as.integer(0), as.integer(selection.nrevisions))
-  }else if (! is.null(selection.start) && ! is.null(selection.end) ){
-    if (inherits(selection.start, "Date") && inherits(selection.end, "Date")){
-      janalysis<-.jcall(jvintages, "Ldemetra/revisions/parametric/RegressionBasedAnalysis;", "verticalAnalysis", as.character(selection.start), as.character(selection.end))
-    }
-    else{
-      warning("Wrong registration period")
-    }  
-  }
-  
-  return(readanalysis(janalysis))
-}
-
 
 #' Title
 #'
@@ -71,7 +42,7 @@ makerevisions<-function(jfac, selection.nrevisions, selection.start, selection.e
 #' @export
 #'
 #' @examples
-revisions <- function(periodicity, input, selection.nrevisions=0, selection.firstVintage=NULL, selection.lastVintage=NULL) {
+vintages<- function(periodicity, input) {
   
   jfac<-.jnew("demetra/revisions/r/VintagesFactory", as.integer(periodicity))
   
@@ -106,11 +77,7 @@ revisions <- function(periodicity, input, selection.nrevisions=0, selection.firs
   
   lapply(input, FUN=addToRevisions)
   
-  #creates the Vintages
-  
-  return(makerevisions(jfac, selection.nrevisions, selection.start, selection.end, analysis.vertical))
-  
-  
+  return (vintageTableFromFactory(jfac))
 }
 
 ymd<-function(y, m, d=1){
@@ -133,80 +100,6 @@ yp<-function(s){
     return (ymd(y,m))
   }
   return (NULL)
-}
-
-
-#' Title
-#'
-#' @param file 
-#'
-#' @return
-#' @export
-#'
-#' @examples
-revisionsFromCsv<-function(file, periodicity, regDateFormat= "%Y.%m.%d", selection.nrevisions=0, selection.start=NULL, selection.end=NULL, analysis.vertical=T){
-  z<-read.csv(file, stringsAsFactors = F)  
-
-  todate<-function(x){
-    x<-substr(x, 2, 11)
-    return (as.Date(x, regDateFormat))
-  }
-  
-  regdates<-lapply(colnames(z)[-1], todate)
-  
-  refdates<-lapply(z$time,yp)
-  
-  jfac<-.jnew("demetra/revisions/r/VintagesFactory", as.integer(periodicity))
-  
-  # Not optimal
-  for (row in 1:length(refdates)){
-    for (col in 1:length(regdates)){
-      val<-z[row, col+1]
-      if (! is.na(val)){
-        .jcall(jfac, "V", "add", as.character(refdates[[row]]), as.character(regdates[[col]]), val)
-      }
-    }
-  }
-  
-  
-  return(makerevisions(jfac, selection.nrevisions, selection.start, selection.end, analysis.vertical))
-  
-}
-
-#' Title
-#'
-#' @param revisions 
-#' @param nrevs 
-#'
-#' @return
-#' @export
-#'
-#' @examples
-regressionAnalysis<-function(revisions, nrevs=3){
-  if (class(revisions) != "JD.Revisions"){
-    warning("Invalid argument. Should be a revisions object")
-    return(NULL)
-  }
-
-  jrevanalysis<-.jcall(revisions$internal, "Ldemetra/revisions/parametric/RegressionBasedAnalysis;", 
-                       "regressionBasedAnalysis", as.integer(nrevs) )
-  
-  
-  jbias<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "biasInformation", jrevanalysis)
-  bias<-matrix_jd2r(jbias)
-  fbias<-as.data.frame(bias)
-  fbias<-`colnames<-`(fbias, c("N", "mu", "stdev", "T", "p-value", "ar-parameter", "adj. stdev", "adj. T", "adj. p-value"))
-  nr<-dim(bias)[1]
-  rn<-array(nr)
-  rn[1]<-"Current"
-  for (j in 2:nr){
-    rn[j]<-paste0("Rev-", j)
-  }
-  fibais<-`rownames<-`(fbias, rn)
-  
-  return(structure(
-    list(bias=fbias),
-    class="JD.Revisions.RegressionBasedAnalysis"))
 }
 
 
@@ -272,13 +165,13 @@ vintageTableFromFactory<-function(jfac){
 #' @export
 #'
 #' @examples
-verticalRevisions<-function(tsm, lag=1){
+verticalRevisions<-function(tsm, gap=1){
   q<-tsm
   q[is.na(q)]<-0
   n<-dim(q)[2]
   
-  idx1<-(lag+1):n
-  idx0<-1:(n-lag)
+  idx1<-(gap+1):n
+  idx0<-1:(n-gap)
   
   rev<-q[,idx1]-q[,idx0]
   
@@ -288,20 +181,163 @@ verticalRevisions<-function(tsm, lag=1){
   rev<-`colnames<-`(rev, rw)
   
   jq<-matrix_r2jd(q)
-  theil<-.jcall("demetra/revisions/r/Utility", "[D", "theil", jq)
-  jsd<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "slopeAndDrift", jq)
+  jrev<-matrix_r2jd(rev)
+  theil<-.jcall("demetra/revisions/r/Utility", "[D", "theil", jq, as.integer(gap))
+  jsd<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "slopeAndDrift", jq, as.integer(gap))
   slopeAndDrift=matrix_jd2r(jsd)
-  jef1<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "efficiencyModel1", jq)
+  jbias<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "bias", jrev)
+  bias=matrix_jd2r(jbias)
+  jef1<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "efficiencyModel1", jq, as.integer(gap))
   slopeAndDrift=matrix_jd2r(jsd)
-  jef2<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "efficiencyModel2", jq)
+  jef2<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "efficiencyModel2", jq, as.integer(gap))
   slopeAndDrift=matrix_jd2r(jsd)
   efficiencyModel1=matrix_jd2r(jef1)
   efficiencyModel2=matrix_jd2r(jef2)
   parametric<-list(theil=theil, 
-                   slopeAndDrift=slopeAndDrift, 
-                   efficiencyModel1=efficiencyModel1,
-                   efficiencyModel2=efficiencyModel2)
+                   bias=`colnames<-`(bias, biasNames),
+                   slopeAndDrift=`colnames<-`(slopeAndDrift, OlsNames), 
+                   efficiencyModel1=`colnames<-`(efficiencyModel1, OlsNames),
+                   efficiencyModel2=`colnames<-`(efficiencyModel2, OlsNames))
 
   return (structure(list(vintageTable=tsm, revisions=rev, parametric=parametric), class="JD3_RevisionAnalysis"))
 }
 
+#' Title
+#'
+#' @param vintages 
+#' @param gap 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+revisions<-function(vintages, gap=1){
+  q<-vintages
+  q[is.na(q)]<-0
+  n<-dim(q)[2]
+  
+  idx1<-(gap+1):n
+  idx0<-1:(n-gap)
+  
+  rev<-q[,idx1]-q[,idx0]
+  
+  w<-sapply(colnames(tsm), function(s){paste0('[', s, ']')})
+  rw<-mapply(function(a,b){paste(a,b,sep='-')}, w[idx1],w[idx0])
+  
+  rev<-`colnames<-`(rev, rw)
+  return (rev)
+}
+  
+#' Title
+#'
+#' @param vintages 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+theil<-function(vintages, gap=1){
+  q<-vintages
+  q[is.na(q)]<-0
+  jq<-matrix_r2jd(q)
+  theil<-.jcall("demetra/revisions/r/Utility", "[D", "theil", jq, as.integer(gap))
+  return (theil)
+}
+
+#' Title
+#'
+#' @param vintages 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+slopeAndDrift<-function(vintages, gap=1){
+  q<-tsm
+  q[is.na(q)]<-0
+  jq<-matrix_r2jd(q)
+  jsd<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "slopeAndDrift", jq, as.integer(gap))
+  slopeAndDrift=matrix_jd2r(jsd)
+  return (`colnames<-`(slopeAndDrift, OlsNames))
+}
+                   
+#' Title
+#'
+#' @param revisions 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+bias<-function(revisions){
+  jrevs<-matrix_r2jd(revisions)
+  jbias<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "bias", jrevs)
+  bias=matrix_jd2r(jbias)
+  return (`colnames<-`(bias, biasNames))
+}
+
+#' Title
+#'
+#' @param vintages 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+efficiencyModel1<-function(vintages, gap=1){
+  q<-tsm
+  q[is.na(q)]<-0
+  jq<-matrix_r2jd(q)
+  jef1<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "efficiencyModel1", jq, as.integer(gap))
+  efficiencyModel1=matrix_jd2r(jef1)
+   return (`colnames<-`(efficiencyModel1, OlsNames))
+}
+
+#' Title
+#'
+#' @param vintages 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+efficiencyModel2<-function(vintages, gap=1){
+  q<-tsm
+  q[is.na(q)]<-0
+  jq<-matrix_r2jd(q)
+  jef2<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "efficiencyModel2", jq, as.integer(gap))
+  efficiencyModel2=matrix_jd2r(jef2)
+  return (`colnames<-`(efficiencyModel2, OlsNames))
+}
+
+#' Title
+#'
+#' @param revisions 
+#' @param nrevs 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+orthogonallyModel1<-function(revisions, nrevs=1){
+  jr<-matrix_r2jd(as.matrix(revisions))
+  jom<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "orthogonallyModel1", jr, as.integer(nrevs))
+  om=matrix_jd2r(jom)
+  return (`colnames<-`(om, OlsAllNames(nrevs)))
+}
+
+#' Title
+#'
+#' @param revisions 
+#' @param reference 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+orthogonallyModel2<-function(revisions, reference=1){
+  jr<-matrix_r2jd(as.matrix(revisions))
+  jom<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "orthogonallyModel2", jr, as.integer(reference))
+  om=matrix_jd2r(jom)
+  return (`colnames<-`(om, OlsNames))
+}
