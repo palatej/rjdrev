@@ -10,6 +10,7 @@ OlsNames<-c("N", "R2", "F", "intercept.estimate", "intercept.stderr", "intercept
             "BreuschPagan.R2", "BreuschPagan.value", "BreuschPagan.pvalue",
             "White.R2", "White.value", "White.pvalue", 
             "arch.R2", "arch.value", "arch.pvalue")
+            
 
 OlsTestNames<-c(
               "skewness", "kurtosis", "JarqueBera.value", "JarqueBera.pvalue", 
@@ -18,7 +19,22 @@ OlsTestNames<-c(
             "arch.R2", "arch.value", "arch.pvalue")
 
 OlsAdjNames<-c("N", "R2", "F")
+
+acNames<-c("BreuschGodfrey.R2", "BreuschGodfrey.value", "BreuschGodfrey.pvalue", 
+           "LungBox.value", "LungBox.pvalue")
             
+urNames<-c("DF.value", "DF.stderr", "DF.statistic", "DF.pvalue",
+           "ADF.value", "ADF.stderr", "ADF.statistic", "ADF.pvalue",
+           "DFCT.value", "DFCT.stderr", "DFCT.statistic", "DFCT.pvalue",
+           "PP.value", "PP.stderr", "PP.statistic", "PP.pvalue"
+           )
+
+egNames<-c("value", "stderr", "statistic", "pvalue")
+
+vecmNames<-c("trace(2)", "trace(1)", "max(2)", "max(1)")
+
+snNames<-c("News.R2", "News.F", "News.pvalue", "Noise.R2", "Noise.F", "Noise.pvalue")
+
 
 OlsCNames<-function(nregs){
   n<-c("intercept.estimate", "intercept.stderr", "intercept.pvalue") 
@@ -263,6 +279,102 @@ slopeAndDrift<-function(vintages, gap=1){
                    
 #' Title
 #'
+#' @param vintages 
+#' @param reference 
+#' @param nbreuschgodfrey 
+#' @param nljungbox 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+autoCorrelation<-function(vintages, nbreuschgodfrey=1, nljungbox=1){
+  q<-vintages
+  q[is.na(q)]<-0
+  jq<-matrix_r2jd(q)
+  jsd<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "autoCorrelation", jq
+              , as.integer(nbreuschgodfrey), as.integer(nljungbox))
+  ac<-matrix_jd2r(jsd)
+  return (`colnames<-`(ac, acNames))
+}
+
+#' Title
+#'
+#' @param vintages 
+#' @param adfk 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+unitroot<-function(vintages, adfk=1){
+  q<-vintages
+  q[is.na(q)]<-0
+  jq<-matrix_r2jd(q)
+  jsd<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "unitroot", jq, as.integer(adfk))
+  ur<-matrix_jd2r(jsd)
+  return (`colnames<-`(ur, urNames))
+}
+
+#' Cointegration tests (Engle-Granger)
+#'
+#' @param vintages 
+#' @param adfk 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+cointegration<-function(vintages, adfk=1){
+  q<-vintages
+  q[is.na(q)]<-0
+  jq<-matrix_r2jd(q)
+  jsd<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "cointegration", jq, as.integer(adfk))
+  eg<-matrix_jd2r(jsd)
+  return (`colnames<-`(eg, egNames))
+}
+
+#' Title
+#'
+#' @param vintages 
+#' @param lag 
+#' @param model 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+vecm<-function(vintages, lag=2, model = c("none", "cnt", "trend")){
+  model<-match.arg(model)
+  q<-vintages
+  q[is.na(q)]<-0
+  jq<-matrix_r2jd(q)
+  jsd<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "vecm", jq, as.integer(lag), model)
+  vecm<-matrix_jd2r(jsd)
+  return (`colnames<-`(vecm, vecmNames))
+}
+
+
+#' Title
+#'
+#' @param vintages 
+#' @param gap 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+signalnoise<-function(vintages, gap=1){
+  q<-vintages
+  q[is.na(q)]<-0
+  jq<-matrix_r2jd(q)
+  jsd<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "signalNoise", jq, as.integer(gap))
+  sn<-matrix_jd2r(jsd)
+  return (`colnames<-`(sn, snNames))
+}
+
+#' Title
+#'
 #' @param revisions 
 #'
 #' @return
@@ -285,7 +397,7 @@ bias<-function(revisions){
 #'
 #' @examples
 efficiencyModel1<-function(vintages, gap=1){
-  q<-tsm
+  q<-vintages
   q[is.na(q)]<-0
   jq<-matrix_r2jd(q)
   jef1<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "efficiencyModel1", jq, as.integer(gap))
@@ -302,7 +414,7 @@ efficiencyModel1<-function(vintages, gap=1){
 #'
 #' @examples
 efficiencyModel2<-function(vintages, gap=1){
-  q<-tsm
+  q<-vintages
   q[is.na(q)]<-0
   jq<-matrix_r2jd(q)
   jef2<-.jcall("demetra/revisions/r/Utility", "Ldemetra/math/matrices/MatrixType;", "efficiencyModel2", jq, as.integer(gap))
